@@ -6,3 +6,5 @@ timestamp,report_id,filename,label,confidence,size,area_ratio,calories,total_cal
 2026-01-05T10:51:47,1a7278f34ea7431a970fc1eaa5fa88ee,images.jpg,tofu,0.9631,large,1.0,114.0,114.0
 2026-01-05T10:51:50,d5bd11ea85de4091ad0ba934c0a56063,images.jpg,tofu,0.9631,large,1.0,114.0,114.0
 2026-01-05T10:52:42,4f7105444ce64feda3035dc55c030f3b,How-To-Cook-Whole-Fish-In-The-Oven-Baked-Roastted-Mahi-Mahi-Recipe-2.jpg,beef,0.6762,large,1.0,375.0,375.0
+2026-01-05T17:42:29,bf953040ce004ae4a6f0251ece8e754f,images.webp,noodles,0.8995,large,1.0,330.0,379.5
+2026-01-05T17:42:29,bf953040ce004ae4a6f0251ece8e754f,images.webp,shrimp,0.7368,small,0.019211,49.5,379.5
