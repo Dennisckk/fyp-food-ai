@@ -18,8 +18,149 @@ from datetime import datetime
 from uuid import uuid4
 from pathlib import Path
 from fastapi import HTTPException
+import csv, json
+from datetime import datetime
+from fastapi.responses import FileResponse, JSONResponse
 
 app = FastAPI()
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]   # .../fyp-food-ai
+OUTPUTS_DIR = PROJECT_ROOT / "outputs"
+HISTORY_CSV = OUTPUTS_DIR / "predictions_history.csv"
+
+HISTORY_HEADERS = [
+    "timestamp",
+    "filename",
+    "conf",
+    "total_calories_estimate",
+    "items",      # short summary like "fish:small:140 | rice:medium:220"
+    "raw_json"    # full JSON for debugging
+]
+
+def _summarize_items(detections: list[dict]) -> str:
+    parts = []
+    for d in detections:
+        label = d.get("label", "")
+        size = d.get("size", "")
+        cal = d.get("calories", "")
+        parts.append(f"{label}:{size}:{cal}")
+    return " | ".join(parts)
+
+def append_history(payload: dict, conf: float):
+    OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
+
+    detections = payload.get("detections", []) or []
+    row = {
+        "timestamp": datetime.now().isoformat(timespec="seconds"),
+        "filename": payload.get("filename", ""),
+        "conf": conf,
+        "total_calories_estimate": payload.get("total_calories_estimate", 0),
+        "items": _summarize_items(detections),
+        "raw_json": json.dumps(payload, ensure_ascii=False),
+    }
+
+    file_exists = HISTORY_CSV.exists()
+    with HISTORY_CSV.open("a", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=HISTORY_HEADERS)
+        if not file_exists:
+            w.writeheader()
+        w.writerow(row)
+
+@app.get("/history")
+def get_history(page: int = 1, page_size: int = 10, max_items: int = 0):
+    """
+    page_size = rows per page (you want fixed 10)
+    max_items = cap how many newest rows are available in history (20/50/100). 0 = all
+    """
+    # sanitize
+    if page < 1:
+        page = 1
+
+    if page_size < 1:
+        page_size = 10
+    if page_size > 50:
+        page_size = 50  # safety
+
+    if max_items < 0:
+        max_items = 0
+    if max_items > 500:
+        max_items = 500  # safety
+
+    if not HISTORY_CSV.exists():
+        return {"page": page, "page_size": page_size, "max_items": max_items, "total": 0, "rows": []}
+
+    with HISTORY_CSV.open("r", newline="", encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+
+    # newest first
+    rows = rows[::-1]
+
+    # apply cap (max_items)
+    if max_items > 0:
+        rows = rows[:max_items]
+
+    total = len(rows)
+
+    start = (page - 1) * page_size
+    end = start + page_size
+    page_rows = rows[start:end]
+
+    return {"page": page, "page_size": page_size, "max_items": max_items, "total": total, "rows": page_rows}
+
+@app.get("/history.csv")
+def download_history_csv(page: int = 1, page_size: int = 0, max_items: int = 0):
+    """
+    - If page_size=0: download ALL rows (but still obey max_items if >0)
+    - If page_size>0: download ONLY that page slice (obeys max_items too)
+    """
+    if page < 1:
+        page = 1
+
+    if page_size < 0:
+        page_size = 0
+    if page_size > 200:
+        page_size = 200
+
+    if max_items < 0:
+        max_items = 0
+    if max_items > 500:
+        max_items = 500
+
+    if not HISTORY_CSV.exists():
+        OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
+        with HISTORY_CSV.open("w", newline="", encoding="utf-8") as f:
+            w = csv.DictWriter(f, fieldnames=HISTORY_HEADERS)
+            w.writeheader()
+
+    with HISTORY_CSV.open("r", newline="", encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+
+    # newest first
+    rows = rows[::-1]
+
+    # apply cap (max_items)
+    if max_items > 0:
+        rows = rows[:max_items]
+
+    # If page_size > 0, export ONLY that page slice
+    if page_size > 0:
+        start = (page - 1) * page_size
+        end = start + page_size
+        rows = rows[start:end]
+        filename = f"predictions_history_p{page}_ps{page_size}_cap{max_items or 'all'}.csv"
+    else:
+        filename = f"predictions_history_cap{max_items or 'all'}.csv"
+
+    import io as _io
+    buf = _io.StringIO()
+    w = csv.DictWriter(buf, fieldnames=HISTORY_HEADERS)
+    w.writeheader()
+    for r in rows:
+        w.writerow(r)
+
+    csv_bytes = buf.getvalue().encode("utf-8")
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    return Response(content=csv_bytes, media_type="text/csv", headers=headers)
 
 # Allow your HTML page to call the API (CORS)
 app.add_middleware(
@@ -121,11 +262,11 @@ def preprocess_upload(img: Image.Image, max_side: int = 1280) -> Image.Image:
     return img
 
 @app.post("/predict")
-async def predict(file: UploadFile = File(...)):
+async def predict(file: UploadFile = File(...), conf: float = Query(0.35)):
     content = await file.read()
     img = Image.open(io.BytesIO(content)).convert("RGB")
 
-    detections = run_inference(img, conf_thres=0.35)
+    detections = run_inference(img, conf_thres=conf)
     detections, total_cal = estimate_calories(detections)
 
     report_id = uuid4().hex
@@ -141,7 +282,7 @@ async def predict(file: UploadFile = File(...)):
         app.state.reports = {}
     app.state.reports[report_id] = report
 
-    # append to global CSV log
+    append_history(report, conf)
     append_prediction_to_csv(report)
 
     return report

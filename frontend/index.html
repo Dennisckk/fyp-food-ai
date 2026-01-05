@@ -97,6 +97,39 @@
       </details>
     </div>
 
+        <div class="card">
+      <h3>History</h3>
+
+      <div class="controls">
+        <button id="btnHistory" type="button">Refresh history</button>
+        <button id="btnPrev" type="button">Prev</button>
+        <button id="btnNext" type="button">Next</button>
+        <span class="muted" id="pageInfo"></span>
+        <select id="historyLimit">
+          <option value="10">10</option>
+          <option value="20" selected>20</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+        </select>
+
+        <a id="btnDownloadHistory" href="/history.csv" download>Download All History CSV</a>
+        <span class="muted" id="historyStatus"></span>
+      </div>
+
+      <table id="historyTable" style="display:none;">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Filename</th>
+            <th>Conf</th>
+            <th>Total Calories</th>
+            <th>Items</th>
+          </tr>
+        </thead>
+        <tbody id="historyTbody"></tbody>
+      </table>
+    </div>
+
     <script>
       const fileInput = document.getElementById("img");
       const previewImg = document.getElementById("preview");
@@ -113,6 +146,97 @@
       const totalEl = document.getElementById("total");
       const warn = document.getElementById("warn");
       const downloadBtn = document.getElementById("download");
+
+      const btnHistory = document.getElementById("btnHistory");
+      const historyTable = document.getElementById("historyTable");
+      const historyTbody = document.getElementById("historyTbody");
+      const historyStatus = document.getElementById("historyStatus");
+      const historyLimit = document.getElementById("historyLimit");
+      const btnDownloadHistory = document.getElementById("btnDownloadHistory");
+
+      let currentPage = 1;
+      const PAGE_SIZE = 10;    
+      let maxItems = Number(historyLimit.value) || 20;
+
+      const btnPrev = document.getElementById("btnPrev");
+      const btnNext = document.getElementById("btnNext");
+      const pageInfo = document.getElementById("pageInfo");
+
+      async function refreshHistory() {
+        try {
+          historyStatus.textContent = "Loading…";
+          maxItems = Number(historyLimit.value) || 20;
+
+          const res = await fetch(`/history?page=${currentPage}&page_size=${PAGE_SIZE}&max_items=${maxItems}`);
+          const data = await res.json();
+
+          const rows = data.rows || [];
+          const total = data.total || 0;
+
+          historyTbody.innerHTML = "";
+
+          if (!rows.length) {
+            historyTable.style.display = "none";
+            historyStatus.textContent = "No history yet.";
+            pageInfo.textContent = "";
+            return;
+          }
+
+          for (const r of rows) {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+              <td>${r.timestamp ?? ""}</td>
+              <td>${r.filename ?? ""}</td>
+              <td>${r.conf ?? ""}</td>
+              <td>${r.total_calories_estimate ?? ""}</td>
+              <td style="max-width:520px; white-space:normal;">${r.items ?? ""}</td>
+            `;
+            historyTbody.appendChild(tr);
+          }
+
+          historyTable.style.display = "table";
+
+          const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+          pageInfo.textContent = `Page ${currentPage} / ${totalPages} (Total: ${total}, Cap: ${maxItems})`;
+
+          updateDownloadLink(total);
+
+          // enable/disable buttons
+          btnPrev.disabled = currentPage <= 1;
+          btnNext.disabled = currentPage >= totalPages;
+
+          historyStatus.textContent = `Showing ${rows.length} items.`;
+        } catch (e) {
+          console.error(e);
+          historyStatus.textContent = "Failed to load history (check backend).";
+        }
+      }
+      
+      function updateDownloadLink(total) {
+        btnDownloadHistory.href = `/history.csv?page=${currentPage}&page_size=${PAGE_SIZE}&max_items=${maxItems}`;
+      }
+
+      btnPrev.addEventListener("click", () => {
+        if (currentPage > 1) {
+          currentPage--;
+          refreshHistory();
+        }
+      });
+
+      btnNext.addEventListener("click", () => {
+        currentPage++;
+        refreshHistory();
+      });
+
+      btnHistory.addEventListener("click", () => {
+        currentPage = 1;   // refresh from first page
+        refreshHistory();
+      });
+
+      historyLimit.addEventListener("change", () => {
+        currentPage = 1;
+        refreshHistory();
+      });
       
       let lastReportId = null;
       let prevUrl = null;
@@ -207,6 +331,7 @@
           downloadBtn.disabled = !lastReportId;
           out.textContent = JSON.stringify(data, null, 2);
           renderTable(data);
+          await refreshHistory();
 
           // 2) Annotated image
           const res2 = await postFile(API_IMG, file);
