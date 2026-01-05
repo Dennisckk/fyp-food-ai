@@ -1,0 +1,255 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>FYP Food AI</title>
+    <style>
+      body { font-family: Arial, sans-serif; max-width: 920px; margin: 24px auto; padding: 0 16px; }
+      .row { display: flex; gap: 24px; flex-wrap: wrap; }
+      .card { border: 1px solid #ddd; border-radius: 10px; padding: 14px; flex: 1; min-width: 320px; }
+      img { max-width: 100%; border: 1px solid #444; border-radius: 8px; display: none; }
+      table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+      th, td { border-bottom: 1px solid #eee; padding: 8px; text-align: left; font-size: 14px; }
+      th { background: #fafafa; }
+      .muted { color: #666; font-size: 13px; }
+      .total { font-size: 16px; font-weight: bold; margin-top: 10px; }
+      .controls { display:flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 10px 0; }
+      .pill { display:inline-block; padding: 2px 8px; border-radius: 999px; border:1px solid #ddd; font-size: 12px; }
+      button { padding: 10px 14px; border-radius: 8px; border: 1px solid #333; background: #111; color: #fff; cursor: pointer; }
+      button:disabled { opacity: 0.5; cursor: not-allowed; }
+      pre { background:#0b1020; color:#e6e6e6; padding:12px; border-radius:10px; overflow:auto; }
+      .imgBox{
+        width: 100%;
+        height: 360px;
+        border: 1px solid #444;
+        border-radius: 8px;
+        background: #f7f7f7;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+      }
+      .imgBox img{
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>FYP Food AI — Ingredient Detection + Portion (S/M/L) + Calories</h2>
+
+    <div class="card">
+      <h3>Upload food image</h3>
+      <input type="file" id="img" accept="image/*" />
+
+      <div class="controls">
+        <label>
+          Confidence:
+          <input type="range" id="conf" min="0.05" max="0.60" step="0.05" value="0.35" />
+        </label>
+        <span class="pill" id="confVal">0.35</span>
+
+        <button id="btn">Predict</button>
+        <button id="download" disabled>Download Report (CSV)</button>
+        <span class="muted" id="status"></span>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="card">
+        <h3>Selected image preview</h3>
+        <div class="imgBox"><img id="preview" /></div>
+      </div>
+
+      <div class="card">
+        <h3>Annotated result</h3>
+        <div class="imgBox"><img id="annotated" /></div>
+        
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Results</h3>
+      <div id="summary" class="muted">No prediction yet.</div>
+      <div id="warn" style="display:none; margin-top:10px; padding:10px 12px; border:1px solid #f2c94c; background:#fff7d6; border-radius:10px;">
+        ⚠️ <b>Note:</b> Some styles (e.g., whole fish on tray / strong background) may not be detected until retraining.
+      </div>
+
+      <table id="tbl" style="display:none;">
+        <thead>
+          <tr>
+            <th>Ingredient</th>
+            <th>Confidence</th>
+            <th>Size</th>
+            <th>Calories</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+
+      <div class="total" id="total" style="display:none;"></div>
+
+      <details style="margin-top:10px;">
+        <summary class="muted">Show raw JSON</summary>
+        <pre id="out"></pre>
+      </details>
+    </div>
+
+    <script>
+      const fileInput = document.getElementById("img");
+      const previewImg = document.getElementById("preview");
+      const annotatedImg = document.getElementById("annotated");
+      const btn = document.getElementById("btn");
+      const out = document.getElementById("out");
+      const statusEl = document.getElementById("status");
+      const confSlider = document.getElementById("conf");
+      const confVal = document.getElementById("confVal");
+
+      const tbl = document.getElementById("tbl");
+      const tbody = document.getElementById("tbody");
+      const summary = document.getElementById("summary");
+      const totalEl = document.getElementById("total");
+      const warn = document.getElementById("warn");
+      const downloadBtn = document.getElementById("download");
+      
+      let lastReportId = null;
+      let prevUrl = null;
+      let annotatedUrl = null;
+
+      confSlider.addEventListener("input", () => {
+        confVal.textContent = Number(confSlider.value).toFixed(2);
+      });
+
+      fileInput.addEventListener("change", () => {
+        const file = fileInput.files?.[0];
+
+        if (!file) {
+          previewImg.style.display = "none";
+          previewImg.removeAttribute("src");
+          return;
+        }
+
+        if (prevUrl) URL.revokeObjectURL(prevUrl);
+        prevUrl = URL.createObjectURL(file);
+
+        previewImg.src = prevUrl;
+        previewImg.style.display = "block";
+      });
+
+      function renderTable(data) {
+        const dets = data?.detections ?? [];
+        tbody.innerHTML = "";
+
+        if (!dets.length) {
+          tbl.style.display = "none";
+          totalEl.style.display = "none";
+
+          summary.innerHTML = `
+            <b>No ingredients detected.</b><br/>
+            Try these tips:<br/>
+            • Lower confidence (e.g., 0.05–0.15)<br/>
+            • Move closer so food fills most of the image<br/>
+            • Use a plate-style photo (less background)<br/>
+            • Try a different angle / better lighting
+          `;
+
+          warn.style.display = "block";   // ✅ show warning banner
+          return;
+        }
+
+        for (const d of dets) {
+          const tr = document.createElement("tr");
+          const cal = (d.calories !== undefined) ? d.calories : 0;
+
+          tr.innerHTML = `
+            <td>${d.label}</td>
+            <td>${Number(d.confidence ?? 0).toFixed(2)}</td>
+            <td>${d.size ?? "-"}</td>
+            <td>${Number(cal).toFixed(2)}</td>
+          `;
+          tbody.appendChild(tr);
+        }
+
+        tbl.style.display = "table";
+        summary.textContent = `Detected ${dets.length} ingredient(s).`;
+        warn.style.display = "none";
+
+        const total = data?.total_calories_estimate ?? 0;
+        totalEl.textContent = `Total calories (estimate): ${Number(total).toFixed(2)} kcal`;
+        totalEl.style.display = "block";
+      }
+
+      async function postFile(url, file) {
+        const fd = new FormData();
+        fd.append("file", file);
+        return fetch(url, { method: "POST", body: fd });
+      }
+
+      btn.onclick = async () => {
+        if (!fileInput.files.length) return alert("Choose an image first");
+        const file = fileInput.files[0];
+
+        btn.disabled = true;
+        statusEl.textContent = "Predicting…";
+
+        const conf = Number(confSlider.value).toFixed(2);
+        const API_JSON = `/predict?conf=${encodeURIComponent(conf)}`;
+        const API_IMG  = `/predict_annotated?conf=${encodeURIComponent(conf)}`;
+
+        try {
+          // 1) JSON
+          const res1 = await postFile(API_JSON, file);
+          if (!res1.ok) throw new Error(`JSON endpoint failed: ${res1.status}`);
+          const data = await res1.json();
+          lastReportId = data.report_id || null;
+          downloadBtn.disabled = !lastReportId;
+          out.textContent = JSON.stringify(data, null, 2);
+          renderTable(data);
+
+          // 2) Annotated image
+          const res2 = await postFile(API_IMG, file);
+          if (!res2.ok) throw new Error(`Image endpoint failed: ${res2.status}`);
+          const blob = await res2.blob();
+
+          if (annotatedUrl) URL.revokeObjectURL(annotatedUrl);
+          annotatedUrl = URL.createObjectURL(blob);
+          annotatedImg.src = annotatedUrl;
+          annotatedImg.style.display = "block";
+
+          statusEl.textContent = "Done.";
+        } catch (err) {
+          console.error(err);
+          statusEl.textContent = "Error. Check terminal logs.";
+          alert(err.message);
+        } finally {
+          btn.disabled = false;
+        }
+
+        downloadBtn.onclick = async () => {
+          if (!lastReportId) {
+            alert("No report yet. Click Predict first.");
+            return;
+          }
+
+          const url = `/report/${lastReportId}.csv`;
+          const r = await fetch(url);
+          if (!r.ok) {
+            alert("Report not found. Please click Predict again.");
+            return;
+          }
+
+          const blob = await r.blob();
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(blob);
+          a.download = `report_${lastReportId}.csv`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+        };
+
+      };
+    </script>
+  </body>
+</html>

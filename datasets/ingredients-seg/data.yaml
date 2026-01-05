@@ -1,0 +1,16 @@
+path: datasets/ingredients-seg
+train: images/train
+val: images/val
+test: images/test
+
+names:
+  0: egg
+  1: rice
+  2: chicken
+  3: fish
+  4: beef
+  5: noodles
+  6: bread
+  7: vegetable
+  8: shrimp
+  9: tofu

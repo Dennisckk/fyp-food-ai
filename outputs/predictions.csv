@@ -1,0 +1,8 @@
+timestamp,report_id,filename,label,confidence,size,area_ratio,calories,total_calories_estimate
+2026-01-05T09:52:45,c935f68c3b9c4a8cbfd6f810ad1f63c6,images (1).jpg,bread,0.9416,large,1.0,240.0,357.0
+2026-01-05T09:52:45,c935f68c3b9c4a8cbfd6f810ad1f63c6,images (1).jpg,egg,0.8852,large,0.398086,117.0,357.0
+2026-01-05T10:51:30,fd2d62540ecc46b1a2392832022a3ab6,arroz-con-coco-y-pescado-frito-coconut-rice-and-fried-fish-bnt247LoTk.webp,noodles,0.5772,large,1.0,330.0,570.0
+2026-01-05T10:51:30,fd2d62540ecc46b1a2392832022a3ab6,arroz-con-coco-y-pescado-frito-coconut-rice-and-fried-fish-bnt247LoTk.webp,bread,0.6483,large,0.546652,240.0,570.0
+2026-01-05T10:51:47,1a7278f34ea7431a970fc1eaa5fa88ee,images.jpg,tofu,0.9631,large,1.0,114.0,114.0
+2026-01-05T10:51:50,d5bd11ea85de4091ad0ba934c0a56063,images.jpg,tofu,0.9631,large,1.0,114.0,114.0
+2026-01-05T10:52:42,4f7105444ce64feda3035dc55c030f3b,How-To-Cook-Whole-Fish-In-The-Oven-Baked-Roastted-Mahi-Mahi-Recipe-2.jpg,beef,0.6762,large,1.0,375.0,375.0
