@@ -166,6 +166,7 @@
         try {
           historyStatus.textContent = "Loading…";
           maxItems = Number(historyLimit.value) || 20;
+          updateDownloadLink();
 
           const res = await fetch(`/history?page=${currentPage}&page_size=${PAGE_SIZE}&max_items=${maxItems}`);
           const data = await res.json();
@@ -213,7 +214,9 @@
       }
       
       function updateDownloadLink(total) {
-        btnDownloadHistory.href = `/history.csv?page=${currentPage}&page_size=${PAGE_SIZE}&max_items=${maxItems}`;
+        // btnDownloadHistory.href = `/history.csv?page=${currentPage}&page_size=${PAGE_SIZE}&max_items=${maxItems}`;
+        // download ALL within cap (50/100/etc). page_size default = 0 on backend
+        btnDownloadHistory.href = `/history.csv?max_items=${maxItems}&t=${Date.now()}`;
       }
 
       btnPrev.addEventListener("click", () => {
