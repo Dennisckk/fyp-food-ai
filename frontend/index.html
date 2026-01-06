@@ -2,137 +2,568 @@
 <html>
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>FYP Food AI</title>
     <style>
-      body { font-family: Arial, sans-serif; max-width: 920px; margin: 24px auto; padding: 0 16px; }
-      .row { display: flex; gap: 24px; flex-wrap: wrap; }
-      .card { border: 1px solid #ddd; border-radius: 10px; padding: 14px; flex: 1; min-width: 320px; }
-      img { max-width: 100%; border: 1px solid #444; border-radius: 8px; display: none; }
-      table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-      th, td { border-bottom: 1px solid #eee; padding: 8px; text-align: left; font-size: 14px; }
-      th { background: #fafafa; }
-      .muted { color: #666; font-size: 13px; }
-      .total { font-size: 16px; font-weight: bold; margin-top: 10px; }
-      .controls { display:flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 10px 0; }
-      .pill { display:inline-block; padding: 2px 8px; border-radius: 999px; border:1px solid #ddd; font-size: 12px; }
-      button { padding: 10px 14px; border-radius: 8px; border: 1px solid #333; background: #111; color: #fff; cursor: pointer; }
-      button:disabled { opacity: 0.5; cursor: not-allowed; }
-      pre { background:#0b1020; color:#e6e6e6; padding:12px; border-radius:10px; overflow:auto; }
+      :root{
+        --bg:#f6f7fb;
+        --card:#ffffff;
+        --text:#111827;
+        --muted:#6b7280;
+        --border:#e5e7eb;
+        --shadow: 0 10px 30px rgba(0,0,0,.06);
+        --radius: 14px;
+        --gap: 14px;
+      }
+
+      *{ box-sizing:border-box; }
+      body{
+        margin:0;
+        height:100vh;
+        overflow:hidden; 
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+        color:var(--text);
+        background:var(--bg);
+      }
+
+      .app{
+        height:100vh;
+        display:flex;
+        flex-direction:column;
+      }
+
+      /* Top header */
+      .topbar{
+        padding: 16px 18px;
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap: 12px;
+        border-bottom:1px solid var(--border);
+        background:rgba(255,255,255,.7);
+        backdrop-filter: blur(10px);
+      }
+      .title{
+        display:flex;
+        flex-direction:column;
+        gap:4px;
+      }
+      .title h1{
+        margin:0;
+        font-size:18px;
+        letter-spacing:.2px;
+      }
+      .title .sub{
+        margin:0;
+        font-size:12.5px;
+        color:var(--muted);
+      }
+
+      .pill{
+        display:inline-flex;
+        align-items:center;
+        gap:8px;
+        padding:6px 10px;
+        border:1px solid var(--border);
+        border-radius:999px;
+        background:#fff;
+        color:var(--muted);
+        font-size:12px;
+        white-space:nowrap;
+      }
+
+      /* Main dashboard grid */
+      .dash{
+        flex:1;
+        padding: 14px 18px 18px;
+        display:grid;
+        grid-template-columns: 2fr 1fr; 
+        gap: var(--gap);
+        min-height:0; 
+      }
+
+      /* Cards */
+      .card{
+        background:var(--card);
+        border:1px solid var(--border);
+        border-radius:var(--radius);
+        box-shadow:var(--shadow);
+        padding: 12px 12px 10px;
+        min-height:0; 
+      }
+      .card h3{
+        margin: 0 0 10px 0;
+        font-size:14px;
+        letter-spacing:.2px;
+      }
+      .muted{ color:var(--muted); font-size:12.5px; }
+
+      .left{
+        display:grid;
+        grid-template-rows: auto 1fr; 
+        gap: var(--gap);
+        min-height:0;
+      }
+
+      .uploadRow{
+        display:grid;
+        grid-template-columns: 1fr auto;
+        align-items:center;
+        gap: 10px;
+      }
+
+      .controls{
+        display:flex;
+        align-items:center;
+        gap:10px;
+        flex-wrap:wrap;
+        margin-top: 10px;
+      }
+
+      input[type="file"]{
+        width:100%;
+      }
+
+      /* Buttons */
+      button{
+        padding: 10px 14px;
+        border-radius: 10px;
+        border: 1px solid #111827;
+        background: #111827;
+        color: #fff;
+        cursor: pointer;
+        font-weight:600;
+        font-size:13px;
+      }
+      button:disabled{ opacity:.5; cursor:not-allowed; }
+
+      .btnSecondary{
+        background:#fff;
+        color:#111827;
+        border:1px solid var(--border);
+        font-weight:600;
+      }
+
+      /* Link as button */
+      a.linkBtn{
+        display:inline-flex;
+        align-items:center;
+        justify-content:center;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border:1px solid var(--border);
+        background:#fff;
+        color:#111827;
+        text-decoration:none;
+        font-weight:600;
+        font-size:13px;
+      }
+
+      .leftGrid{
+        display:grid;
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: 1fr 1fr;
+        gap: var(--gap);
+        min-height:0;
+      }
+      .span2{ grid-column: 1 / span 2; }
+
       .imgBox{
         width: 100%;
-        height: 360px;
-        border: 1px solid #444;
-        border-radius: 8px;
-        background: #f7f7f7;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        overflow: hidden;
+        height: 100%;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: #f3f4f6;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        overflow:hidden;
+        min-height:0;
       }
       .imgBox img{
-        max-width: 100%;
-        max-height: 100%;
+        max-width:100%;
+        max-height:100%;
+        object-fit:contain;
+        display:block;
+      }
+
+      .right{
+        display:grid;
+        grid-template-rows: 0.95fr 1.05fr;
+        gap: var(--gap);
+        min-height:0;
+      }
+
+      .scrollArea{
+        overflow:auto;
+        min-height:0;
+      }
+
+      table{
+        width:100%;
+        border-collapse:collapse;
+      }
+      th, td{
+        border-bottom: 1px solid #f0f1f5;
+        padding: 8px 8px;
+        text-align:left;
+        font-size: 13px;
+        vertical-align:top;
+      }
+      th{
+        position:sticky;
+        top:0;
+        background:#fafafa;
+        z-index:1;
+      }
+
+      .total{
+        font-size:14px;
+        font-weight:800;
+        margin-top: 10px;
+      }
+
+      pre{
+        background:#0b1020;
+        color:#e6e6e6;
+        padding:12px;
+        border-radius:12px;
+        overflow:auto;
+        max-height: 220px;
+      }
+
+      .warnBox{
+        display:none;
+        margin-top:10px;
+        padding:10px 12px;
+        border:1px solid #f2c94c;
+        background:#fff7d6;
+        border-radius:12px;
+        font-size:13px;
+      }
+
+      /* History controls row */
+      .historyControls{
+        display:flex;
+        gap:10px;
+        flex-wrap:wrap;
+        align-items:center;
+        margin-bottom: 10px;
+      }
+      select{
+        padding: 8px 10px;
+        border-radius: 10px;
+        border:1px solid var(--border);
+        background:#fff;
+      }
+
+      .imgCard {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+
+      .imgCard .imgBox{
+        height: clamp(240px, 34vh, 380px); 
+        min-height: 220px;
+      }
+
+      .imgBox img{
+        width: 100%;
+        height: 100%;
         object-fit: contain;
         display: block;
       }
+
+      .right > .card{
+        height: 100%;
+        min-height: 0;
+      }
+
+      .resultsCard{
+        display:flex;
+        flex-direction:column;
+        min-height:0;
+      }
+
+      .resultsCard .scrollArea{
+        flex: 1;        
+        min-height: 0;
+        overflow:auto;    
+      }
+
+      .resultsCard details pre{
+        max-height: 220px;
+        overflow:auto;
+      }
+
+      .resultsCard details pre,
+      pre#out{
+        white-space: pre;     
+        overflow-x: auto;        
+        overflow-y: auto;       
+        max-height: 220px;       
+      }
+
+      .resultsCard .scrollArea,
+      .resultsCard details,
+      .resultsCard pre{
+        min-width: 0;
+      }
+
+      /* --- Grad-CAM split layout (image left, text right) --- */
+      .camCard{
+        display:flex;
+        flex-direction:column;
+        min-height:0;
+        margin-bottom: 6px;
+      }
+
+      .camHeader{
+        margin-bottom: 4px;   
+        min-height: 0;    
+        display:flex;
+        justify-content:flex-start;
+        align-items:center;
+      }
+
+      .camLayout{
+        flex: 1;                 
+        min-height:0;
+        display:flex;
+        gap:12px;
+      }
+
+      .camLeft{ flex: 1.45; min-width:0; min-height:0; }
+      .camRight{ flex: 0.55; min-width:0; min-height:0; }
+
+      .camImgBox{ height:100%; min-height:0; }
+
+      .camImgBox img{
+        width:100%;
+        height:100%;
+        object-fit:contain;
+        display:block;
+      }
+
+      .camText{
+        height:100%;
+        min-height:0;
+        border:1px solid var(--border);
+        border-radius:12px;
+        padding:12px;
+        background:#fff;
+
+        display:flex;
+        flex-direction:column;
+        gap:8px;
+      }
+
+      .camTitle{ margin:0; }
+
+      .camTextBody{
+        flex:1;
+        min-height:0;
+        overflow:auto;           
+        line-height:1.45;
+      }
+
+      @media (max-width: 1020px){
+        .camLayout{
+          flex-direction:column;
+          height:auto;
+        }
+        .camImgBox{ height:300px; }
+        .camTextBody{ max-height:220px; }
+      }
+
+      /* Responsive: stack on smaller screens */
+      @media (max-width: 1020px){
+        body{ overflow:auto; } /* allow scroll on small screens */
+        .dash{ grid-template-columns: 1fr; }
+        .right{ grid-template-rows: auto auto; }
+        .leftGrid{ grid-template-columns: 1fr; grid-template-rows: auto auto auto; }
+        .span2{ grid-column:auto; }
+        pre{ max-height: 260px; }
+      }
+
+      /* .resultsCard .scrollArea{
+        overflow-y: auto;
+        overflow-x: hidden;
+      }
+
+      .jsonBox{
+        max-width: 100%;
+        overflow-x: scroll; 
+        overflow-y: auto;
+        border-radius: 12px; 
+      }
+
+      .jsonBox #out{
+        margin: 0;
+        white-space: pre;     
+        min-width: max-content; 
+      }
+
+      .jsonBox::-webkit-scrollbar{
+        height: 12px;
+      } */
+
     </style>
   </head>
+
   <body>
-    <h2>FYP Food AI — Ingredient Detection + Portion (S/M/L) + Calories</h2>
-
-    <div class="card">
-      <h3>Upload food image</h3>
-      <input type="file" id="img" accept="image/*" />
-
-      <div class="controls">
-        <label>
-          Confidence:
-          <input type="range" id="conf" min="0.05" max="0.60" step="0.05" value="0.35" />
-        </label>
-        <span class="pill" id="confVal">0.35</span>
-
-        <button id="btn">Predict</button>
-        <button id="download" disabled>Download Report (CSV)</button>
-        <span class="muted" id="status"></span>
-      </div>
-    </div>
-
-    <div class="row">
-      <div class="card">
-        <h3>Selected image preview</h3>
-        <div class="imgBox"><img id="preview" /></div>
+    <div class="app">
+      <div class="topbar">
+        <div class="title">
+          <h1>FYP Food AI</h1>
+          <p class="sub">Ingredient Detection • Portion (S/M/L) • Calories • Grad-CAM</p>
+        </div>
+        <div class="pill">
+          <span>Confidence</span>
+          <strong id="confVal">0.35</strong>
+        </div>
       </div>
 
-      <div class="card">
-        <h3>Annotated result</h3>
-        <div class="imgBox"><img id="annotated" /></div>        
+      <div class="dash">
+        <!-- LEFT MAIN -->
+        <div class="left">
+          <div class="card">
+            <h3>Upload & Predict</h3>
+            <div class="uploadRow">
+              <input type="file" id="img" accept="image/*" />
+              <div class="muted" id="status"></div>
+            </div>
+
+            <div class="controls">
+              <label class="muted" style="display:flex; gap:10px; align-items:center;">
+                Confidence:
+                <input type="range" id="conf" min="0.05" max="0.60" step="0.05" value="0.35" />
+              </label>
+
+              <button id="btn">Predict</button>
+              <button id="download" class="btnSecondary" disabled>Download Report (CSV)</button>
+            </div>
+          </div>
+
+          <div class="leftGrid">
+            <div class="card imgCard">
+              <h3>Selected Image</h3>
+              <div class="imgBox" style="height:100%;">
+                <img id="preview" style="display:none;" />
+              </div>
+              <div class="muted" style="margin-top:8px;">Tip: try close-up, plate-style photos for better detection.</div>
+            </div>
+
+            <div class="card imgCard">
+              <h3>Annotated Result</h3>
+              <div class="imgBox">
+                <img id="annotated" style="display:none;" />
+              </div>
+              <div class="muted" style="margin-top:8px;">Boxes + labels are based on your confidence slider.</div>
+            </div>
+
+            <div class="card span2 camCard">
+              <h3>Grad-CAM Explanation</h3>
+
+              <!-- Header ONLY for status (left aligned) -->
+              <div class="camHeader">
+                <div id="explainStatus" class="muted"></div>
+              </div>
+
+              <div class="camLayout">
+                <!-- LEFT: image -->
+                <div class="camLeft">
+                  <div class="imgBox camImgBox">
+                    <img id="explainImg" style="display:none;" />
+                  </div>
+                </div>
+
+                <!-- RIGHT: explanation -->
+                <div class="camRight">
+                  <div class="camText">
+                    <div class="muted camTitle">Explanation</div>
+                    <div id="explainText" class="camTextBody"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT SIDEBAR -->
+        <div class="right">
+          <div class="card resultsCard">
+            <h3>Results</h3>
+
+            <div id="summary" class="muted">No prediction yet.</div>
+
+            <div id="warn" class="warnBox">
+              ⚠️ <b>Note:</b> Some styles (e.g., whole fish on tray / strong background) may not be detected until retraining.
+            </div>
+
+            <div class="scrollArea" style="margin-top:10px;">
+              <table id="tbl" style="display:none;">
+                <thead>
+                  <tr>
+                    <th>Ingredient</th>
+                    <th>Confidence</th>
+                    <th>Size</th>
+                    <th>Calories</th>
+                  </tr>
+                </thead>
+                <tbody id="tbody"></tbody>
+              </table>
+
+              <div class="total" id="total" style="display:none;"></div>
+
+              <details style="margin-top:10px;">
+                <summary class="muted">Show raw JSON</summary>
+                <div class="jsonBox">
+                  <pre id="out"></pre>
+                </div>
+              </details>
+            </div>
+          </div>
+
+          <div class="card" style="display:flex; flex-direction:column;">
+            <h3>History</h3>
+
+            <div class="historyControls">
+              <button id="btnHistory" type="button" class="btnSecondary">Refresh</button>
+              <button id="btnPrev" type="button" class="btnSecondary">Prev</button>
+              <button id="btnNext" type="button" class="btnSecondary">Next</button>
+
+              <span class="muted" id="pageInfo"></span>
+
+              <select id="historyLimit" title="Cap">
+                <option value="10">10</option>
+                <option value="20" selected>20</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+
+              <a id="btnDownloadHistory" class="linkBtn" href="/history.csv" download>Download All CSV</a>
+              <span class="muted" id="historyStatus"></span>
+            </div>
+
+            <div class="scrollArea">
+              <table id="historyTable" style="display:none;">
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Filename</th>
+                    <th>Conf</th>
+                    <th>Total</th>
+                    <th>Items</th>
+                  </tr>
+                </thead>
+                <tbody id="historyTbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       </div>
-
-      <div class="card">
-        <h3>Grad-CAM explanation</h3>
-        <div id="explainStatus" style="margin:6px 0; color:#666;"></div>
-        <div class="imgBox"><img id="explainImg" style="display:none; max-width:100%; border:1px solid #ccc; border-radius:8px;" /></div>
-        <div id="explainText" style="margin-top:10px; color:#222; line-height:1.4;"></div>
-    </div>
-
-    <div class="card">
-      <h3>Results</h3>
-      <div id="summary" class="muted">No prediction yet.</div>
-      <div id="warn" style="display:none; margin-top:10px; padding:10px 12px; border:1px solid #f2c94c; background:#fff7d6; border-radius:10px;">
-        ⚠️ <b>Note:</b> Some styles (e.g., whole fish on tray / strong background) may not be detected until retraining.
-      </div>
-
-      <table id="tbl" style="display:none;">
-        <thead>
-          <tr>
-            <th>Ingredient</th>
-            <th>Confidence</th>
-            <th>Size</th>
-            <th>Calories</th>
-          </tr>
-        </thead>
-        <tbody id="tbody"></tbody>
-      </table>
-
-      <div class="total" id="total" style="display:none;"></div>
-
-      <details style="margin-top:10px;">
-        <summary class="muted">Show raw JSON</summary>
-        <pre id="out"></pre>
-      </details>
-    </div>
-
-        <div class="card">
-      <h3>History</h3>
-
-      <div class="controls">
-        <button id="btnHistory" type="button">Refresh history</button>
-        <button id="btnPrev" type="button">Prev</button>
-        <button id="btnNext" type="button">Next</button>
-        <span class="muted" id="pageInfo"></span>
-        <select id="historyLimit">
-          <option value="10">10</option>
-          <option value="20" selected>20</option>
-          <option value="50">50</option>
-          <option value="100">100</option>
-        </select>
-
-        <a id="btnDownloadHistory" href="/history.csv" download>Download All History CSV</a>
-        <span class="muted" id="historyStatus"></span>
-      </div>
-
-      <table id="historyTable" style="display:none;">
-        <thead>
-          <tr>
-            <th>Time</th>
-            <th>Filename</th>
-            <th>Conf</th>
-            <th>Total Calories</th>
-            <th>Items</th>
-          </tr>
-        </thead>
-        <tbody id="historyTbody"></tbody>
-      </table>
     </div>
 
     <script>
@@ -158,12 +589,14 @@
       const historyStatus = document.getElementById("historyStatus");
       const historyLimit = document.getElementById("historyLimit");
       const btnDownloadHistory = document.getElementById("btnDownloadHistory");
+
       const explainImg = document.getElementById("explainImg");
       const explainStatus = document.getElementById("explainStatus");
-      
+      const explainTextEl = document.getElementById("explainText");
+
       let explainUrl = null;
       let currentPage = 1;
-      const PAGE_SIZE = 10;    
+      const PAGE_SIZE = 10;
       let maxItems = Number(historyLimit.value) || 20;
 
       const btnPrev = document.getElementById("btnPrev");
@@ -210,7 +643,6 @@
 
           updateDownloadLink(total);
 
-          // enable/disable buttons
           btnPrev.disabled = currentPage <= 1;
           btnNext.disabled = currentPage >= totalPages;
 
@@ -220,9 +652,8 @@
           historyStatus.textContent = "Failed to load history (check backend).";
         }
       }
-      
+
       function updateDownloadLink(total) {
-        // btnDownloadHistory.href = `/history.csv?page=${currentPage}&page_size=${PAGE_SIZE}&max_items=${maxItems}`;
         // download ALL within cap (50/100/etc). page_size default = 0 on backend
         btnDownloadHistory.href = `/history.csv?max_items=${maxItems}&t=${Date.now()}`;
       }
@@ -240,7 +671,7 @@
       });
 
       btnHistory.addEventListener("click", () => {
-        currentPage = 1;   // refresh from first page
+        currentPage = 1;
         refreshHistory();
       });
 
@@ -248,7 +679,7 @@
         currentPage = 1;
         refreshHistory();
       });
-      
+
       let lastReportId = null;
       let prevUrl = null;
       let annotatedUrl = null;
@@ -290,7 +721,7 @@
             • Try a different angle / better lighting
           `;
 
-          warn.style.display = "block";   // ✅ show warning banner
+          warn.style.display = "block";
           return;
         }
 
@@ -333,7 +764,6 @@
         const API_JSON = `/predict?conf=${encodeURIComponent(conf)}`;
         const API_IMG  = `/predict_annotated?conf=${encodeURIComponent(conf)}`;
         const API_CAM  = `/explain?conf=${encodeURIComponent(conf)}`;
-        const explainTextEl = document.getElementById("explainText");
         const API_EXPLAIN_TEXT = `/explain_text?conf=${encodeURIComponent(conf)}`;
 
         try {
@@ -358,8 +788,7 @@
           annotatedImg.style.display = "block";
 
           // 3) Explanation (heatmap)
-          document.getElementById("explainStatus").textContent = "Generating explanation…";
-
+          explainStatus.textContent = "Generating explanation…";
           try {
             const res3 = await postFile(API_CAM, file);
             if (!res3.ok) throw new Error(`Explain endpoint failed: ${res3.status}`);
@@ -370,12 +799,11 @@
 
             explainImg.src = explainUrl;
             explainImg.style.display = "block";
-            document.getElementById("explainStatus").textContent = "";
+            explainStatus.textContent = "";
           } catch (e) {
             console.warn(e);
             explainImg.style.display = "none";
-            document.getElementById("explainStatus").textContent =
-              "Explanation not available (check backend terminal).";
+            explainStatus.textContent = "Explanation not available (check backend terminal).";
           }
 
           // 4) Explanation text (auto)
@@ -389,48 +817,7 @@
             explainTextEl.innerHTML = "<i>Explanation text not available.</i>";
           }
 
-          // // 3) Explanation (optional)
-          // try {
-          //   const res3 = await postFile(API_CAM, file);
-          //   if (res3.ok) {
-          //     const camBlob = await res3.blob();
-          //     if (explainUrl) URL.revokeObjectURL(explainUrl);
-          //     explainUrl = URL.createObjectURL(camBlob);
-          //     explainImg.src = explainUrl;
-          //     explainImg.style.display = "block";
-          //   } else {
-          //     console.warn("Explain endpoint failed:", res3.status);
-          //     explainImg.style.display = "none";
-          //   }
-          // } catch (e) {
-          //   console.warn("Explain error:", e);
-          //   explainImg.style.display = "none";
-          // }
-
-          // // 3) Grad-CAM explanation
-          // explainImg.style.display = "none";
-          // explainStatus.textContent = "Generating Grad-CAM…";
-
-          // try {
-          //   const res3 = await postFile(`${API_CAM}&t=${Date.now()}`, file); // cache-buster
-          //   if (!res3.ok) throw new Error(`Explain endpoint failed: ${res3.status}`);
-
-          //   const camBlob = await res3.blob();
-
-          //   if (explainUrl) URL.revokeObjectURL(explainUrl);
-          //   explainUrl = URL.createObjectURL(camBlob);
-
-          //   explainImg.src = explainUrl;
-          //   explainImg.style.display = "block";
-          //   explainStatus.textContent = "";
-          // } catch (e) {
-          //   console.warn(e);
-          //   explainImg.style.display = "none";
-          //   explainStatus.textContent = "Grad-CAM not available for this image/model.";
-          // }
-          
           statusEl.textContent = "Done.";
-
         } catch (err) {
           console.error(err);
           statusEl.textContent = "Error. Check terminal logs.";
@@ -461,6 +848,11 @@
         a.click();
         a.remove();
       };
+
+      // Optional: show history immediately on load
+      window.addEventListener("load", () => {
+        refreshHistory();
+      });
     </script>
   </body>
 </html>
