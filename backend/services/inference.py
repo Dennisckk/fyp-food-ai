@@ -1,8 +1,12 @@
 from ultralytics import YOLO
 import numpy as np
-from PIL import Image
+# from PIL import Image
 from pathlib import Path
 from collections import defaultdict
+import torch
+import cv2
+import io
+from PIL import Image, ImageOps, ImageFile
 
 # Put your trained weights later in: fyp-food-ai/models/ingredient_yolo.pt
 ROOT = Path(__file__).resolve().parents[2]  # .../fyp-food-ai
@@ -68,6 +72,8 @@ def run_inference(pil_img: Image.Image, conf_thres: float = 0.35):
         return detections
 
     masks = r.masks.data.cpu().numpy()
+    mh, mw = masks.shape[1], masks.shape[2]
+    image_area = mh * mw
     boxes = r.boxes
 
     for i in range(len(boxes)):
@@ -115,3 +121,59 @@ def run_inference(pil_img: Image.Image, conf_thres: float = 0.35):
     detections.sort(key=lambda x: x["mask_area_px"], reverse=True)
     return detections
 
+def _get_last_conv_layer(module: torch.nn.Module):
+    last = None
+    for m in module.modules():
+        if isinstance(m, torch.nn.Conv2d):
+            last = m
+    return last
+
+def _encode_png(rgb: np.ndarray) -> bytes:
+    """rgb: HxWx3 uint8 (RGB) -> PNG bytes"""
+    bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+    ok, buf = cv2.imencode(".png", bgr)
+    if not ok:
+        raise RuntimeError("PNG encode failed")
+    return buf.tobytes()
+
+
+def explain_png_bytes(pil_img: Image.Image, conf_thres: float = 0.25, imgsz: int = 640, alpha: float = 0.45) -> bytes:
+    """
+    Returns a heatmap-overlay PNG using predicted SEG masks weighted by confidence.
+    This is more stable than true Grad-CAM for YOLO-seg.
+    """
+    pil_img = ImageOps.exif_transpose(pil_img)
+    if pil_img.mode != "RGB":
+        pil_img = pil_img.convert("RGB")
+
+    # YOLO predict
+    results = model.predict(source=pil_img, conf=conf_thres, imgsz=imgsz, verbose=False)
+    if not results:
+        return _encode_png(np.array(pil_img))
+
+    r = results[0]
+
+    # No detections or no masks -> return original
+    if r.masks is None or r.boxes is None or len(r.boxes) == 0:
+        return _encode_png(np.array(pil_img))
+
+    masks = r.masks.data.detach().cpu().numpy()   # (N, Hm, Wm)
+    confs = r.boxes.conf.detach().cpu().numpy()   # (N,)
+
+    # Weighted heatmap: sum(mask_i * conf_i)
+    heat = np.tensordot(confs, masks, axes=(0, 0))  # (Hm, Wm)
+    heat = np.clip(heat, 0, None)
+    if heat.max() > 0:
+        heat = heat / heat.max()
+
+    heat_u8 = (heat * 255).astype(np.uint8)
+    heat_color = cv2.applyColorMap(heat_u8, cv2.COLORMAP_JET)  # BGR
+
+    base = np.array(pil_img)  # RGB (H, W, 3)
+
+    # Resize heatmap to original image size
+    heat_color = cv2.resize(heat_color, (base.shape[1], base.shape[0]), interpolation=cv2.INTER_LINEAR)
+    heat_color = cv2.cvtColor(heat_color, cv2.COLOR_BGR2RGB)
+
+    overlay = (base * (1 - alpha) + heat_color * alpha).astype(np.uint8)
+    return _encode_png(overlay)

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, Request
+from fastapi import FastAPI, UploadFile, File, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.responses import StreamingResponse
@@ -11,16 +11,23 @@ from .services.inference import run_inference
 import io
 from fastapi.responses import Response
 from .services.inference import predict_raw, render_annotated_png_bytes
-from fastapi import Query
-from PIL import Image, ImageOps
+# from fastapi import Query
+from PIL import Image, ImageOps, UnidentifiedImageError
 import csv
 from datetime import datetime
 from uuid import uuid4
 from pathlib import Path
-from fastapi import HTTPException
+# from fastapi import HTTPException
+from fastapi import Response, HTTPException
 import csv, json
 from datetime import datetime
 from fastapi.responses import FileResponse, JSONResponse
+# from .services.inference import gradcam_png_bytes
+from .services.inference import explain_png_bytes
+from PIL import ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+from backend.services.inference import explain_png_bytes
+import cv2
 
 app = FastAPI()
 
@@ -266,6 +273,13 @@ async def predict(file: UploadFile = File(...), conf: float = Query(0.35)):
     content = await file.read()
     img = Image.open(io.BytesIO(content)).convert("RGB")
 
+    MAX_SIDE = 1280  # you can try 1024 or 1280
+    w, h = img.size
+    m = max(w, h)
+    if m > MAX_SIDE:
+        scale = MAX_SIDE / m
+        img = img.resize((int(w * scale), int(h * scale)), Image.BILINEAR)
+
     detections = run_inference(img, conf_thres=conf)
     detections, total_cal = estimate_calories(detections)
 
@@ -287,6 +301,61 @@ async def predict(file: UploadFile = File(...), conf: float = Query(0.35)):
 
     return report
 
+def build_explanation_text(filename: str, conf: float, detections: list, total_cal: float) -> str:
+    if not detections:
+        return (
+            "No ingredients were confidently detected. Try lowering the confidence threshold, "
+            "move closer so the food fills the image, or use better lighting."
+        )
+
+    # sort by confidence (high → low)
+    dets = sorted(detections, key=lambda d: float(d.get("confidence", 0)), reverse=True)
+
+    top = dets[0]
+    top_label = top.get("label", "ingredient")
+    top_conf = float(top.get("confidence", 0))
+    top_size = top.get("size", "-")
+    top_cal = float(top.get("calories", 0))
+
+    # top-3 summary
+    top3 = dets[:3]
+    top3_str = ", ".join([f"{d.get('label')} ({float(d.get('confidence',0)):.2f})" for d in top3])
+
+    # portion summary
+    size_counts = {}
+    for d in dets:
+        s = d.get("size", "-")
+        size_counts[s] = size_counts.get(s, 0) + 1
+    size_str = ", ".join([f"{k}:{v}" for k, v in size_counts.items() if k != "-"]) or "unknown"
+
+    msg = (
+        f"Detected {len(dets)} ingredient(s): {top3_str}. "
+        f"The model focused most on **{top_label}** (confidence {top_conf:.2f}), "
+        f"estimated portion **{top_size}**, about **{top_cal:.0f} kcal** for this item. "
+        f"Portion distribution: {size_str}. "
+        f"Total estimated calories: **{float(total_cal):.0f} kcal**."
+    )
+    return msg
+
+
+@app.post("/explain_text")
+async def explain_text(file: UploadFile = File(...), conf: float = 0.35):
+    contents = await file.read()
+    img = load_upload_image(contents)  # your existing loader
+
+    detections = run_inference(img, conf_thres=conf)
+    detections, total_cal = estimate_calories(detections)
+
+    text = build_explanation_text(file.filename, conf, detections, total_cal)
+
+    return JSONResponse({
+        "filename": file.filename,
+        "conf": conf,
+        "num_detections": len(detections),
+        "total_calories_estimate": total_cal,
+        "explanation": text
+    })
+
 @app.post("/predict_annotated")
 async def predict_annotated(file: UploadFile = File(...), conf: float = Query(0.35)):
     contents = await file.read()
@@ -300,6 +369,28 @@ async def predict_annotated(file: UploadFile = File(...), conf: float = Query(0.
     png_bytes = render_annotated_png_bytes(r)
     return Response(content=png_bytes, media_type="image/png")
 
+def load_upload_image(contents: bytes) -> Image.Image:
+    """Loads jpg/png/webp safely and returns RGB PIL Image."""
+    try:
+        img = Image.open(io.BytesIO(contents))
+        img = ImageOps.exif_transpose(img)
+        return img.convert("RGB")
+    except UnidentifiedImageError:
+        # fallback for formats Pillow can't open (often WEBP if pillow built without webp)
+        arr = np.frombuffer(contents, np.uint8)
+        bgr = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+        if bgr is None:
+            raise
+        rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+        return Image.fromarray(rgb)
+
+@app.post("/explain")
+async def explain(file: UploadFile = File(...), conf: float = 0.35):
+    contents = await file.read()
+    img = load_upload_image(contents)
+
+    png_bytes = explain_png_bytes(img, conf_thres=conf)  # from inference.py
+    return Response(content=png_bytes, media_type="image/png")
 
 def draw_boxes(img: Image.Image, detections: list[dict]):
     draw = ImageDraw.Draw(img)

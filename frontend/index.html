@@ -65,9 +65,14 @@
 
       <div class="card">
         <h3>Annotated result</h3>
-        <div class="imgBox"><img id="annotated" /></div>
-        
+        <div class="imgBox"><img id="annotated" /></div>        
       </div>
+
+      <div class="card">
+        <h3>Grad-CAM explanation</h3>
+        <div id="explainStatus" style="margin:6px 0; color:#666;"></div>
+        <div class="imgBox"><img id="explainImg" style="display:none; max-width:100%; border:1px solid #ccc; border-radius:8px;" /></div>
+        <div id="explainText" style="margin-top:10px; color:#222; line-height:1.4;"></div>
     </div>
 
     <div class="card">
@@ -153,7 +158,10 @@
       const historyStatus = document.getElementById("historyStatus");
       const historyLimit = document.getElementById("historyLimit");
       const btnDownloadHistory = document.getElementById("btnDownloadHistory");
-
+      const explainImg = document.getElementById("explainImg");
+      const explainStatus = document.getElementById("explainStatus");
+      
+      let explainUrl = null;
       let currentPage = 1;
       const PAGE_SIZE = 10;    
       let maxItems = Number(historyLimit.value) || 20;
@@ -324,6 +332,9 @@
         const conf = Number(confSlider.value).toFixed(2);
         const API_JSON = `/predict?conf=${encodeURIComponent(conf)}`;
         const API_IMG  = `/predict_annotated?conf=${encodeURIComponent(conf)}`;
+        const API_CAM  = `/explain?conf=${encodeURIComponent(conf)}`;
+        const explainTextEl = document.getElementById("explainText");
+        const API_EXPLAIN_TEXT = `/explain_text?conf=${encodeURIComponent(conf)}`;
 
         try {
           // 1) JSON
@@ -346,7 +357,80 @@
           annotatedImg.src = annotatedUrl;
           annotatedImg.style.display = "block";
 
+          // 3) Explanation (heatmap)
+          document.getElementById("explainStatus").textContent = "Generating explanation…";
+
+          try {
+            const res3 = await postFile(API_CAM, file);
+            if (!res3.ok) throw new Error(`Explain endpoint failed: ${res3.status}`);
+            const camBlob = await res3.blob();
+
+            if (explainUrl) URL.revokeObjectURL(explainUrl);
+            explainUrl = URL.createObjectURL(camBlob);
+
+            explainImg.src = explainUrl;
+            explainImg.style.display = "block";
+            document.getElementById("explainStatus").textContent = "";
+          } catch (e) {
+            console.warn(e);
+            explainImg.style.display = "none";
+            document.getElementById("explainStatus").textContent =
+              "Explanation not available (check backend terminal).";
+          }
+
+          // 4) Explanation text (auto)
+          try {
+            const res4 = await postFile(API_EXPLAIN_TEXT, file);
+            if (!res4.ok) throw new Error(`Explain text failed: ${res4.status}`);
+            const txtData = await res4.json();
+            explainTextEl.innerHTML = txtData.explanation || "";
+          } catch (e) {
+            console.warn(e);
+            explainTextEl.innerHTML = "<i>Explanation text not available.</i>";
+          }
+
+          // // 3) Explanation (optional)
+          // try {
+          //   const res3 = await postFile(API_CAM, file);
+          //   if (res3.ok) {
+          //     const camBlob = await res3.blob();
+          //     if (explainUrl) URL.revokeObjectURL(explainUrl);
+          //     explainUrl = URL.createObjectURL(camBlob);
+          //     explainImg.src = explainUrl;
+          //     explainImg.style.display = "block";
+          //   } else {
+          //     console.warn("Explain endpoint failed:", res3.status);
+          //     explainImg.style.display = "none";
+          //   }
+          // } catch (e) {
+          //   console.warn("Explain error:", e);
+          //   explainImg.style.display = "none";
+          // }
+
+          // // 3) Grad-CAM explanation
+          // explainImg.style.display = "none";
+          // explainStatus.textContent = "Generating Grad-CAM…";
+
+          // try {
+          //   const res3 = await postFile(`${API_CAM}&t=${Date.now()}`, file); // cache-buster
+          //   if (!res3.ok) throw new Error(`Explain endpoint failed: ${res3.status}`);
+
+          //   const camBlob = await res3.blob();
+
+          //   if (explainUrl) URL.revokeObjectURL(explainUrl);
+          //   explainUrl = URL.createObjectURL(camBlob);
+
+          //   explainImg.src = explainUrl;
+          //   explainImg.style.display = "block";
+          //   explainStatus.textContent = "";
+          // } catch (e) {
+          //   console.warn(e);
+          //   explainImg.style.display = "none";
+          //   explainStatus.textContent = "Grad-CAM not available for this image/model.";
+          // }
+          
           statusEl.textContent = "Done.";
+
         } catch (err) {
           console.error(err);
           statusEl.textContent = "Error. Check terminal logs.";
@@ -354,29 +438,28 @@
         } finally {
           btn.disabled = false;
         }
+      };
 
-        downloadBtn.onclick = async () => {
-          if (!lastReportId) {
-            alert("No report yet. Click Predict first.");
-            return;
-          }
+      downloadBtn.onclick = async () => {
+        if (!lastReportId) {
+          alert("No report yet. Click Predict first.");
+          return;
+        }
 
-          const url = `/report/${lastReportId}.csv`;
-          const r = await fetch(url);
-          if (!r.ok) {
-            alert("Report not found. Please click Predict again.");
-            return;
-          }
+        const url = `/report/${lastReportId}.csv`;
+        const r = await fetch(url);
+        if (!r.ok) {
+          alert("Report not found. Please click Predict again.");
+          return;
+        }
 
-          const blob = await r.blob();
-          const a = document.createElement("a");
-          a.href = URL.createObjectURL(blob);
-          a.download = `report_${lastReportId}.csv`;
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-        };
-
+        const blob = await r.blob();
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `report_${lastReportId}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
       };
     </script>
   </body>
